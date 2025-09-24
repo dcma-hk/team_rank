@@ -1,0 +1,74 @@
+please create an app for a manager to view and adjust the stack rank of the team members based on a list of metrics and their roles. 
+there will be a excel file with the three tabs - the app will always use the same execel file stored locally:
+* role map tab (name:Roles)
+1. a list of team members and their roles. two columns, alias and role
+example:
+alias, role
+Tom, Developer
+John, Developer
+Jane, Project Manager
+
+* score tab (name:Scores)
+1. a list of metrics and their weight with respect to different roles
+2. score in each metrics for each team member as columns in the same table, columns after "Max" and "Min" cloumn are for team score
+3. Max and Min are the max and min score for the team members
+
+* expected ranking tab (name:ExpectedRanking)
+1. a list of team members and their expected rank
+
+example:
+alias, role, rank
+Tom, Developer, 1
+John, Developer, 2
+Jane, Project Manager, 1
+
+note that, two team members can have the same rank
+
+example:
+metrics, Developer, Project Manager, Max, Min, Tom, Jane, John
+Software Engineer principal, 0.9, 0.1, 0.7,0.1,0.7, 0.1, 0.6
+Project Management, 0.0, 1.0, 0.8, 0.1, 0.1, 0.8, 0.2
+
+weighted score calculation:
+- weighted score = sum(score * weight) for each metric
+- only the weight for the role of the team member should be considered
+- for example, Tom's weighted score for Software Engineer principal is 0.7 * 0.9 = 0.63
+
+Stack rank rules:
+- team member with the same roles hould be ranked together
+- ranking is based on the weighted score
+
+the app should have the following pages:
+1. a page with table view to view the stack rank of the team members based on the metrics and their roles (page #1)
+- it should allow user to select roles to view the stack rank for the selected roles only
+- the columns include: alias,  rank, expected rank, weighted score,[score for each metric with number label as it is too long for column name, but there is tooltip to show the full metric name when hover]
+- it should highlight rank and "expected rank" column for the team members whose rank is different from the expected rank
+- when use click on the rank that has been highlighted, it should open a page  to allow user to adjust the score so that rank is reflected
+
+2. a page to adjust the score for each metric for each team member (page #2)
+- it should show metrics as rows and team members as columns. 
+- only metrics that applicable to the role of the team member should be shown. (wight > 0)
+- if the team member selected has lower rank than expected, include the team member with the same role that has one level high score as reference. if the team member selected has higher rank than expected, include the team member with the same role that has one level low score as reference.
+- it should allow user to select the metrics to be adjusted manually
+- there should be a "calculate" button to automatically adjust the score based on the reference score and selected metrics and their weight. so that the weighted score is 5% (user can change the percentage) higher or lower than the reference score. 
+- there should be a "next" button to go to the next team member that has different rank than expected based on latest score 
+- there should be a "save" button to save the changes to the excel file, after saved, the page should go back to the page #1, and the changes should be reflected on the page #1
+
+3. org ranking view that shows the percitile of the team member based on the weighted score or ranking and their roles (page #3)
+- it should have 10%, 20% ... 90%, 100% as the bucket in rows
+- it should have roles as columns
+- it should show the names and weighted score of team members in each bucket
+
+
+Technology:
+backend:
+- python
+- fastapi
+- pandas
+- openpyxl
+
+frontend:
+- react
+- material ui
+
+

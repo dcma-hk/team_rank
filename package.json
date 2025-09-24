@@ -1,0 +1,19 @@
+{
+  "name": "team-stack-ranking-manager",
+  "version": "1.0.0",
+  "description": "A web application for managers to view, compare, and adjust team member rankings",
+  "scripts": {
+    "install-all": "pip install -r requirements.txt && cd frontend && npm install",
+    "dev": "concurrently \"python start_backend.py\" \"cd frontend && npm run dev\"",
+    "start-backend": "python start_backend.py",
+    "start-frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "test": "python test_backend.py"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": ["ranking", "team-management", "fastapi", "react"],
+  "author": "Team Stack Ranking Manager",
+  "license": "UNLICENSED"
+}
