@@ -140,30 +140,43 @@ class RankingEngine:
         mismatches.sort(key=sort_key)
         return mismatches
     
-    def get_reference_member(self, target_member: str, target_role: str, 
+    def get_reference_member(self, target_member: str, target_role: str,
                            current_rank: int, expected_rank: int) -> Optional[str]:
         """Get reference member for score adjustment."""
         if expected_rank == current_rank:
             return None
-        
-        # Get all members in the same role
+
+        # Get all members in the same role, sorted by rank
         role_rankings = [r for r in self.calculate_rankings([target_role]) if r.role == target_role]
-        
+        role_rankings.sort(key=lambda x: x.rank)
+
         if expected_rank < current_rank:
-            # Need to improve rank (move up), find member at one level better
+            # Need to improve rank (move up), find member at expected rank or next available rank
             target_ref_rank = expected_rank if expected_rank > 1 else 1
-            # Find member with rank just above target
+
+            # First try to find exact match at expected rank
             for entry in role_rankings:
                 if entry.rank == target_ref_rank and entry.alias != target_member:
+                    return entry.alias
+
+            # If no exact match, find the next available member at a rank >= expected_rank
+            for entry in role_rankings:
+                if entry.rank >= target_ref_rank and entry.alias != target_member:
                     return entry.alias
         else:
-            # Need to worsen rank (move down), find member at one level worse
+            # Need to worsen rank (move down), find member at expected rank or next available rank
             target_ref_rank = expected_rank
-            # Find member with rank just below target
+
+            # First try to find exact match at expected rank
             for entry in role_rankings:
                 if entry.rank == target_ref_rank and entry.alias != target_member:
                     return entry.alias
-        
+
+            # If no exact match, find the next available member at a rank >= expected_rank
+            for entry in role_rankings:
+                if entry.rank >= target_ref_rank and entry.alias != target_member:
+                    return entry.alias
+
         return None
     
     def get_applicable_metrics(self, role: str) -> List[Metric]:

@@ -114,11 +114,21 @@ const AdjustScores: React.FC = () => {
       ? Math.max(1, currentRanking.expected_rank)
       : currentRanking.expected_rank
 
-    return rankings.find(r =>
+    // Filter members in the same role, excluding the current member
+    const roleMembers = rankings.filter(r =>
       r.role === currentRanking.role &&
-      r.rank === targetRank &&
       r.alias !== alias
-    )
+    ).sort((a, b) => a.rank - b.rank) // Sort by rank ascending
+
+    // First try to find exact match at target rank
+    let referenceMember = roleMembers.find(r => r.rank === targetRank)
+
+    // If no exact match, find the next available member at a rank >= target rank
+    if (!referenceMember) {
+      referenceMember = roleMembers.find(r => r.rank >= targetRank)
+    }
+
+    return referenceMember || null
 
   }, [rankings, currentRanking, alias])
 
