@@ -97,12 +97,55 @@ def test_adjustment_engine(data_manager, ranking_engine):
         if preview.hit_clamps:
             print(f"  Hit clamps: {preview.hit_clamps}")
         
+        # Test validation logic
+        test_validation_logic(ae, test_member, ranking_engine)
+
         return ae
-        
+
     except Exception as e:
         print(f"✗ Adjustment engine failed: {e}")
         traceback.print_exc()
         return None
+
+def test_validation_logic(adjustment_engine, test_member, ranking_engine):
+    """Test the one-level restriction validation logic."""
+    print(f"\nTesting validation logic for {test_member.alias}...")
+
+    try:
+        # Get current ranking info
+        current_rankings = ranking_engine.calculate_rankings([test_member.role])
+        current_entry = next((r for r in current_rankings if r.alias == test_member.alias), None)
+
+        if not current_entry or not current_entry.expected_rank:
+            print("! No expected rank set, skipping validation test")
+            return
+
+        print(f"  Current rank: {current_entry.rank}")
+        print(f"  Expected rank: {current_entry.expected_rank}")
+
+        # Test case 1: Small change that should be valid (within 1 level of expected)
+        small_changes = {"metric1": 0.1}  # Small change
+        is_valid, message = adjustment_engine.validate_one_level_restriction(test_member.alias, small_changes)
+        print(f"  Small change validation: {'✓' if is_valid else '✗'} - {message}")
+
+        # Test case 2: Large change that might violate the restriction
+        # We'll create a change that would move the member far from expected rank
+        large_changes = {}
+        # Get applicable metrics for this member
+        applicable_metrics = ranking_engine.get_applicable_metrics(test_member.role)
+        if applicable_metrics:
+            # Make a large change to the first applicable metric
+            metric_name = applicable_metrics[0].name
+            large_changes[metric_name] = 10.0  # Maximum score
+
+            is_valid, message = adjustment_engine.validate_one_level_restriction(test_member.alias, large_changes)
+            print(f"  Large change validation: {'✓' if is_valid else '✗'} - {message}")
+
+        print("✓ Validation logic test completed")
+
+    except Exception as e:
+        print(f"✗ Validation logic test failed: {e}")
+        traceback.print_exc()
 
 def test_sqlite_snapshots():
     """Test SQLite snapshot functionality."""

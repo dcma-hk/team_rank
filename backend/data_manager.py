@@ -156,9 +156,8 @@ class DataManager:
         
         if self.expected_ranking_df is not None:
             self.expected_ranking_df['alias'] = self.expected_ranking_df['alias'].astype(str).str.strip()
-            self.expected_ranking_df['role'] = self.expected_ranking_df['role'].astype(str).str.strip()
             # Remove empty rows
-            self.expected_ranking_df = self.expected_ranking_df.dropna(subset=['alias', 'role'])
+            self.expected_ranking_df = self.expected_ranking_df.dropna(subset=['alias'])
             self.expected_ranking_df = self.expected_ranking_df[self.expected_ranking_df['alias'] != '']
     
     @contextmanager
@@ -346,12 +345,13 @@ class DataManager:
             if not self._data_loaded:
                 raise DataValidationError("Data not loaded")
 
-            # Create new expected ranking dataframe
-            new_rankings_df = pd.DataFrame(rankings)
+            # Create new expected ranking dataframe (only alias and rank columns)
+            rankings_data = [{'alias': r['alias'], 'rank': r['rank']} for r in rankings]
+            new_rankings_df = pd.DataFrame(rankings_data)
 
             # Validate the data
-            if not all(col in new_rankings_df.columns for col in ['alias', 'role', 'rank']):
-                raise DataValidationError("Expected ranking data must have 'alias', 'role', and 'rank' columns")
+            if not all(col in new_rankings_df.columns for col in ['alias', 'rank']):
+                raise DataValidationError("Expected ranking data must have 'alias' and 'rank' columns")
 
             # Validate that all aliases exist in roles
             valid_aliases = set(self.roles_df['alias'].tolist())
@@ -388,6 +388,8 @@ class DataManager:
             self.roles_df = new_roles_df.copy()
             self._normalize_data()
             logger.info(f"Updated roles for {len(roles)} members")
+
+
 
     def save_data(self) -> None:
         """Save data back to Excel file."""

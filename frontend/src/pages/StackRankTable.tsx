@@ -17,7 +17,7 @@ import {
   SelectChangeEvent,
 } from '@mui/material'
 import { FileUpload as FileUploadIcon } from '@mui/icons-material'
-import { DataGrid, GridColDef, GridRowParams } from '@mui/x-data-grid'
+import { DataGrid, GridColDef } from '@mui/x-data-grid'
 import apiService, { RankingEntry, Metric } from '../services/api'
 import ExcelUpload from '../components/ExcelUpload'
 
@@ -26,6 +26,7 @@ const StackRankTable: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [selectedSnapshot, setSelectedSnapshot] = useState<string>('')
   const [uploadDialogOpen, setUploadDialogOpen] = useState<boolean>(false)
+  const [currentSortModel, setCurrentSortModel] = useState<any[]>([])  // Track current sort state
 
   // Fetch snapshots data
   const { data: snapshotsData, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
@@ -43,6 +44,17 @@ const StackRankTable: React.FC = () => {
       setSelectedSnapshot('current')
     }
   }, [snapshotsData, selectedSnapshot, snapshotsError])
+
+  // Initialize sort model based on selected role
+  React.useEffect(() => {
+    if (currentSortModel.length === 0) {
+      if (selectedRole) {
+        setCurrentSortModel([{ field: 'expected_rank', sort: 'asc' }])
+      } else {
+        setCurrentSortModel([{ field: 'role', sort: 'asc' }])
+      }
+    }
+  }, [selectedRole, currentSortModel.length])
 
   // Fetch data
   const { data: rolesData, isLoading: rolesLoading } = useQuery({
@@ -80,6 +92,12 @@ const StackRankTable: React.FC = () => {
   // Handle role selection
   const handleRoleChange = (role: string | null) => {
     setSelectedRole(role)
+    // Reset sort model when role changes to trigger default sort
+    if (role) {
+      setCurrentSortModel([{ field: 'expected_rank', sort: 'asc' }])
+    } else {
+      setCurrentSortModel([{ field: 'role', sort: 'asc' }])
+    }
   }
 
   // Handle snapshot selection
@@ -154,12 +172,7 @@ const StackRankTable: React.FC = () => {
           sx={{
             color: params.row.mismatch ? 'error.main' : 'inherit',
             fontWeight: params.row.mismatch ? 'bold' : 'normal',
-            cursor: params.row.mismatch ? 'pointer' : 'default',
-          }}
-          onClick={() => {
-            if (params.row.mismatch) {
-              navigate(`/adjust/${params.row.alias}`)
-            }
+            cursor: 'default',
           }}
         >
           {params.value}
@@ -204,10 +217,18 @@ const StackRankTable: React.FC = () => {
           sx={{
             color: params.row.mismatch ? 'error.main' : 'inherit',
             fontWeight: params.row.mismatch ? 'bold' : 'normal',
-            cursor: params.row.mismatch ? 'pointer' : 'default',
+            cursor: params.row.firstRankExpectMismatch ? 'pointer' : 'default',
+            backgroundColor: params.row.firstRankExpectMismatch ? 'rgba(255, 0, 0, 0.1)' : 'transparent',
+            padding: '4px',
+            borderRadius: '4px',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
           onClick={() => {
-            if (params.row.mismatch) {
+            if (params.row.firstRankExpectMismatch) {
               navigate(`/adjust/${params.row.alias}`)
             }
           }}
@@ -233,7 +254,7 @@ const StackRankTable: React.FC = () => {
   const rows = useMemo(() => {
     if (!rankings) return []
 
-    return rankings.map((entry: RankingEntry, index: number) => ({
+    const processedRows = rankings.map((entry: RankingEntry, index: number) => ({
       id: index,
       alias: entry.alias,
       role: entry.role,
@@ -242,7 +263,35 @@ const StackRankTable: React.FC = () => {
       weighted_score: entry.weighted_score,
       mismatch: entry.mismatch,
     }))
-  }, [rankings])
+
+    // Find the first row with rank/expect difference when role is selected and sorted by expect
+    let firstMismatchIndex = -1
+    if (selectedRole && currentSortModel.length > 0 &&
+        currentSortModel[0].field === 'expected_rank' &&
+        currentSortModel[0].sort === 'asc') {
+      // Sort by expected_rank ascending to match the table sort
+      const sortedRows = [...processedRows].sort((a, b) => {
+        const aExpected = a.expected_rank || Number.MAX_SAFE_INTEGER
+        const bExpected = b.expected_rank || Number.MAX_SAFE_INTEGER
+        return aExpected - bExpected
+      })
+
+      // Find first row with difference between rank and expected_rank
+      for (let i = 0; i < sortedRows.length; i++) {
+        const row = sortedRows[i]
+        if (row.rank !== row.expected_rank && row.expected_rank != null) {
+          firstMismatchIndex = row.id
+          break
+        }
+      }
+    }
+
+    // Add firstRankExpectMismatch flag to rows
+    return processedRows.map(row => ({
+      ...row,
+      firstRankExpectMismatch: row.id === firstMismatchIndex
+    }))
+  }, [rankings, selectedRole, currentSortModel])
 
   if (isLoading) {
     return (
@@ -345,17 +394,16 @@ const StackRankTable: React.FC = () => {
               paginationModel: { page: 0, pageSize: 25 },
             },
           }}
-          sortModel={selectedRole
+          sortModel={currentSortModel.length > 0 ? currentSortModel : (selectedRole
             ? [{ field: 'expected_rank', sort: 'asc' }]
             : [{ field: 'role', sort: 'asc' }]
-          }
+          )}
+          onSortModelChange={(model) => setCurrentSortModel(model)}
           pageSizeOptions={[25, 50, 100]}
           disableColumnMenu
           disableRowSelectionOnClick
-          onRowClick={(params: GridRowParams) => {
-            if (params.row.mismatch) {
-              navigate(`/adjust/${params.row.alias}`)
-            }
+          onRowClick={() => {
+            // Row click disabled - only highlighted rank cell should be clickable
           }}
           sx={{
             // Match Org Percentiles table header styling
@@ -381,13 +429,8 @@ const StackRankTable: React.FC = () => {
             '& .MuiDataGrid-row:hover': {
               cursor: 'default',
             },
-            '& .mismatch-row:hover': {
-              cursor: 'pointer',
-            },
           }}
-          getRowClassName={(params) =>
-            params.row.mismatch ? 'mismatch-row' : ''
-          }
+          getRowClassName={() => ''}
           slotProps={{
             row: {
               style: {
@@ -401,8 +444,8 @@ const StackRankTable: React.FC = () => {
       {/* Legend */}
       <Box sx={{ mt: 2 }}>
         <Typography variant="body2" color="text.secondary">
-          <strong>Note:</strong> Highlighted entries indicate mismatches between current rank and expected rank.
-          Click on highlighted entries to adjust scores.
+          <strong>Note:</strong> When a role is selected and sorted by Expected Rank, the first rank cell with a mismatch
+          is highlighted in light red and clickable to adjust scores. This mismatch should be resolved first.
         </Typography>
       </Box>
 

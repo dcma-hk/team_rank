@@ -58,7 +58,6 @@ export interface SnapshotInfo {
 
 export interface ExpectedRankingUpdate {
   alias: string
-  role: string
   rank: number
 }
 
@@ -184,6 +183,8 @@ export const apiService = {
     const response = await api.post('/update/roles', request)
     return response.data
   },
+
+
 }
 
 export default apiService

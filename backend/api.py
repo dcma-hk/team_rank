@@ -496,15 +496,21 @@ async def update_expected_rankings(
 ) -> Dict[str, Any]:
     """Update expected rankings for multiple members."""
     try:
-        # Convert request to list of dictionaries
-        rankings_data = [
-            {
+        # Get all members to validate aliases and get roles
+        all_members = data_manager.get_members()
+        member_lookup = {member.alias: member.role for member in all_members}
+
+        # Validate aliases and convert request to list of dictionaries
+        rankings_data = []
+        for ranking in request.rankings:
+            if ranking.alias not in member_lookup:
+                raise ValueError(f"Invalid alias: {ranking.alias}. Alias not found in members table.")
+
+            rankings_data.append({
                 "alias": ranking.alias,
-                "role": ranking.role,
+                "role": member_lookup[ranking.alias],  # Get role from members table
                 "rank": ranking.rank
-            }
-            for ranking in request.rankings
-        ]
+            })
 
         # Update expected rankings
         data_manager.update_expected_rankings(rankings_data)
@@ -522,7 +528,7 @@ async def update_expected_rankings(
             "updated_at": "now"
         }
 
-    except ValueError as e:
+    except (ValueError, DataValidationError, SQLiteDataValidationError) as e:
         logger.warning(f"Invalid expected rankings update request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -563,9 +569,12 @@ async def update_roles(
             "updated_at": "now"
         }
 
-    except ValueError as e:
+    except (ValueError, DataValidationError, SQLiteDataValidationError) as e:
         logger.warning(f"Invalid roles update request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating roles: {e}")
         raise HTTPException(status_code=500, detail="Failed to update roles")
+
+
+

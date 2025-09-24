@@ -161,7 +161,6 @@ class PercentileBucket(BaseModel):
 class ExpectedRankingUpdate(BaseModel):
     """Expected ranking update model."""
     alias: str
-    role: str
     rank: int
 
 

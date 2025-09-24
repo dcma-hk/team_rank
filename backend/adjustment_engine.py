@@ -267,15 +267,25 @@ class AdjustmentEngine:
                 if not new_entry:
                     return False, "Could not calculate new ranking"
 
-                # Check rank change
-                rank_change = current_entry.rank - new_entry.rank  # Positive = moved up, Negative = moved down
-
-                # Allow movement of exactly 1 rank in either direction, or no movement
-                if abs(rank_change) <= 1:
-                    return True, "One-level restriction satisfied"
+                # Check if the new rank is within one level of the expected rank
+                if current_entry.expected_rank is None:
+                    # If no expected rank is set, allow any single-level movement from current rank
+                    rank_change = current_entry.rank - new_entry.rank  # Positive = moved up, Negative = moved down
+                    if abs(rank_change) <= 1:
+                        return True, "One-level restriction satisfied (no expected rank set)"
+                    else:
+                        direction = "up" if rank_change > 0 else "down"
+                        return False, f"Proposed changes would move member {abs(rank_change)} ranks {direction} (from #{current_entry.rank} to #{new_entry.rank}). Only one-level movements are allowed."
                 else:
-                    direction = "up" if rank_change > 0 else "down"
-                    return False, f"Proposed changes would move member {abs(rank_change)} ranks {direction} (from #{current_entry.rank} to #{new_entry.rank}). Only one-level movements are allowed."
+                    # Check if new rank is within one level of expected rank
+                    expected_rank = current_entry.expected_rank
+                    rank_difference_from_expected = abs(new_entry.rank - expected_rank)
+
+                    if rank_difference_from_expected <= 1:
+                        return True, "One-level restriction satisfied"
+                    else:
+                        direction = "up" if new_entry.rank < expected_rank else "down"
+                        return False, f"Proposed changes would move member to rank #{new_entry.rank}, which is {rank_difference_from_expected} ranks away from expected rank #{expected_rank}. Only one-level movements from expected rank are allowed."
 
             finally:
                 # Restore original scores

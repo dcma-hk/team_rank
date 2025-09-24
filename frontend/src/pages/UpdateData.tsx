@@ -2,12 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import {
   Box,
-  Paper,
   Typography,
   TextField,
   Button,
   Alert,
-  Divider,
   Grid,
   Card,
   CardContent,
@@ -18,21 +16,20 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  IconButton,
 } from '@mui/material'
 import {
-  Upload as UploadIcon,
   ContentPaste as PasteIcon,
   Save as SaveIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material'
-import { DataGrid, GridColDef, GridRowsProp, GridRowModel } from '@mui/x-data-grid'
-import apiService, { BulkExpectedRankingUpdate, BulkRoleUpdate } from '../services/api'
+import { DataGrid, GridColDef, GridRowModel, GridRenderCellParams } from '@mui/x-data-grid'
+import apiService from '../services/api'
 
 interface ExpectedRankingRow {
   id: string
   alias: string
-  role: string
   rank: number
 }
 
@@ -96,7 +93,6 @@ const UpdateData: React.FC = () => {
       .map((ranking, index) => ({
         id: `ranking-${index}`,
         alias: ranking.alias,
-        role: ranking.role,
         rank: ranking.expected_rank,
       }))
   }
@@ -116,17 +112,24 @@ const UpdateData: React.FC = () => {
     }
   }, [rankings, rankingsLoading])
 
+  // Delete handlers - just remove from local state
+  const handleDeleteExpectedRanking = (id: string) => {
+    setExpectedRankingsRows((prevRows) =>
+      prevRows.filter(row => row.id !== id)
+    )
+  }
+
+  const handleDeleteRole = (id: string) => {
+    setRolesRows((prevRows) =>
+      prevRows.filter(row => row.id !== id)
+    )
+  }
+
   // Table column definitions
   const expectedRankingsColumns: GridColDef[] = [
     {
       field: 'alias',
       headerName: 'Alias',
-      width: 150,
-      editable: true,
-    },
-    {
-      field: 'role',
-      headerName: 'Role',
       width: 150,
       editable: true,
     },
@@ -137,20 +140,52 @@ const UpdateData: React.FC = () => {
       type: 'number',
       editable: true,
     },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 80,
+      sortable: false,
+      disableColumnMenu: true,
+      renderCell: (params: GridRenderCellParams) => (
+        <IconButton
+          size="small"
+          color="error"
+          onClick={() => handleDeleteExpectedRanking(params.row.id)}
+        >
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      ),
+    },
   ]
 
   const rolesColumns: GridColDef[] = [
     {
       field: 'alias',
       headerName: 'Alias',
-      width: 200,
+      width: 150,
       editable: true,
     },
     {
       field: 'role',
       headerName: 'Role',
-      width: 200,
+      width: 150,
       editable: true,
+    },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 80,
+      sortable: false,
+      disableColumnMenu: true,
+      renderCell: (params: GridRenderCellParams) => (
+        <IconButton
+          size="small"
+          color="error"
+          onClick={() => handleDeleteRole(params.row.id)}
+        >
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      ),
     },
   ]
 
@@ -160,15 +195,15 @@ const UpdateData: React.FC = () => {
       const lines = text.trim().split('\n').filter(line => line.trim())
       return lines.map((line, index) => {
         const parts = line.split(',').map(part => part.trim())
-        if (parts.length !== 3) {
-          throw new Error(`Line ${index + 1}: Expected 3 columns (alias,role,rank), got ${parts.length}`)
+        if (parts.length !== 2) {
+          throw new Error(`Line ${index + 1}: Expected 2 columns (alias,rank), got ${parts.length}`)
         }
 
-        const [alias, role, rankStr] = parts
+        const [alias, rankStr] = parts
         const rank = parseInt(rankStr, 10)
 
-        if (!alias || !role) {
-          throw new Error(`Line ${index + 1}: Alias and role cannot be empty`)
+        if (!alias) {
+          throw new Error(`Line ${index + 1}: Alias cannot be empty`)
         }
 
         if (isNaN(rank) || rank < 1) {
@@ -178,7 +213,6 @@ const UpdateData: React.FC = () => {
         return {
           id: `ranking-${index}`,
           alias,
-          role,
           rank,
         }
       })
@@ -244,6 +278,8 @@ const UpdateData: React.FC = () => {
     },
   })
 
+
+
   // Handler functions
   const handleExpectedRankingsRowUpdate = (newRow: GridRowModel) => {
     setExpectedRankingsRows((prevRows) =>
@@ -263,7 +299,6 @@ const UpdateData: React.FC = () => {
     const newRow: ExpectedRankingRow = {
       id: `ranking-${Date.now()}`,
       alias: '',
-      role: '',
       rank: 1,
     }
     setExpectedRankingsRows((prevRows) => [...prevRows, newRow])
@@ -282,7 +317,6 @@ const UpdateData: React.FC = () => {
     try {
       const rankings = expectedRankingsRows.map(row => ({
         alias: row.alias,
-        role: row.role,
         rank: row.rank,
       }))
 
@@ -375,7 +409,6 @@ const UpdateData: React.FC = () => {
                   rows={expectedRankingsRows}
                   columns={expectedRankingsColumns}
                   processRowUpdate={handleExpectedRankingsRowUpdate}
-                  experimentalFeatures={{ newEditingApi: true }}
                   hideFooter
                   disableRowSelectionOnClick
                 />
@@ -437,7 +470,6 @@ const UpdateData: React.FC = () => {
                   rows={rolesRows}
                   columns={rolesColumns}
                   processRowUpdate={handleRolesRowUpdate}
-                  experimentalFeatures={{ newEditingApi: true }}
                   hideFooter
                   disableRowSelectionOnClick
                 />
@@ -494,16 +526,16 @@ const UpdateData: React.FC = () => {
         <DialogTitle>Copy Expected Rankings from Text</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" paragraph>
-            Paste comma-separated data below. Format: alias,role,rank (one per line)
+            Paste comma-separated data below. Format: alias,rank (one per line)
             <br />
-            Example: Dev01,Dev,1
+            Example: Dev01,1
           </Typography>
           <TextField
             fullWidth
             multiline
             rows={10}
             variant="outlined"
-            placeholder="Dev01,Dev,1&#10;Dev02,Dev,2&#10;PMO01,PMO,1"
+            placeholder="Dev01,1&#10;Dev02,2&#10;PMO01,1"
             value={rankingsTextInput}
             onChange={(e) => setRankingsTextInput(e.target.value)}
             sx={{ mt: 2 }}

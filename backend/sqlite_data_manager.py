@@ -540,60 +540,79 @@ class SQLiteDataManager:
                     raise SQLiteDataValidationError(f"Failed to replace snapshot data: {e}")
 
     def update_expected_rankings(self, rankings: List[Dict[str, Any]]) -> None:
-        """Update expected rankings for multiple members."""
+        """Replace all expected rankings with the provided data."""
         with self._data_lock:
             with self.get_session() as session:
                 try:
+                    # Validate that all aliases exist in the members table
+                    all_aliases = [ranking['alias'] for ranking in rankings]
+                    existing_members = session.query(MemberDB.alias).filter(MemberDB.alias.in_(all_aliases)).all()
+                    existing_aliases = {member.alias for member in existing_members}
+                    invalid_aliases = set(all_aliases) - existing_aliases
+
+                    if invalid_aliases:
+                        raise SQLiteDataValidationError(
+                            f"Cannot update expected rankings for aliases not found in Roles table: {', '.join(sorted(invalid_aliases))}. "
+                            f"Please add these members to the Roles table first."
+                        )
+
+                    # Clear all existing expected rankings
+                    session.query(ExpectedRankingDB).delete()
+
+                    # Create new expected rankings (no role update needed since role is in members table)
                     for ranking_data in rankings:
                         alias = ranking_data['alias']
-                        role = ranking_data['role']
                         expected_rank = ranking_data['rank']
 
-                        # Find the member
+                        # Find the member (we know it exists from validation above)
                         member = session.query(MemberDB).filter_by(alias=alias).first()
-                        if not member:
-                            # Create new member if doesn't exist
-                            member = MemberDB(alias=alias, role=role)
-                            session.add(member)
-                            session.flush()  # Get the ID
-                        else:
-                            # Update role if different
-                            member.role = role
 
-                        # Update expected rank
-                        member.expected_rank = expected_rank
+                        # Create new expected ranking
+                        new_ranking = ExpectedRankingDB(member_id=member.id, rank=expected_rank)
+                        session.add(new_ranking)
 
                     session.commit()
-                    logger.info(f"Successfully updated expected rankings for {len(rankings)} members")
+                    logger.info(f"Successfully replaced expected rankings for {len(rankings)} members")
 
+                except SQLiteDataValidationError:
+                    session.rollback()
+                    raise
                 except Exception as e:
                     session.rollback()
                     logger.error(f"Failed to update expected rankings: {e}")
                     raise SQLiteDataValidationError(f"Failed to update expected rankings: {e}")
 
     def update_roles(self, roles: List[Dict[str, Any]]) -> None:
-        """Update roles for multiple members."""
+        """Replace all members with the provided role data."""
         with self._data_lock:
             with self.get_session() as session:
                 try:
+                    # Validate input data
+                    for role_data in roles:
+                        if not role_data.get('alias') or not role_data.get('role'):
+                            raise SQLiteDataValidationError("Both alias and role must be provided for each member")
+
+                    # Clear all existing members and their related data
+                    # This will cascade delete scores and expected rankings due to foreign key constraints
+                    session.query(MemberDB).delete()
+
+                    # Create new members with the provided data
                     for role_data in roles:
                         alias = role_data['alias']
                         role = role_data['role']
 
-                        # Find the member
-                        member = session.query(MemberDB).filter_by(alias=alias).first()
-                        if not member:
-                            # Create new member if doesn't exist
-                            member = MemberDB(alias=alias, role=role)
-                            session.add(member)
-                        else:
-                            # Update role
-                            member.role = role
+                        member = MemberDB(alias=alias, role=role)
+                        session.add(member)
 
                     session.commit()
-                    logger.info(f"Successfully updated roles for {len(roles)} members")
+                    logger.info(f"Successfully replaced all members with {len(roles)} new entries")
 
+                except SQLiteDataValidationError:
+                    session.rollback()
+                    raise
                 except Exception as e:
                     session.rollback()
                     logger.error(f"Failed to update roles: {e}")
                     raise SQLiteDataValidationError(f"Failed to update roles: {e}")
+
+
