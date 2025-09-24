@@ -67,7 +67,6 @@ frontend/build/
 ~$*.xls
 
 # Database
-*.db
 *.sqlite
 
 # Coverage reports

@@ -1,0 +1,13 @@
+Found 24 metrics
+
+Metric 1: Code Quality
+Weights by role:
+  Dev: 0.87
+
+Metric 2: Velocity
+Weights by role:
+  Dev: 0.64
+
+Metric 3: Architecture
+Weights by role:
+  Dev: 0.91

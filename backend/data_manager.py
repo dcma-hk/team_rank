@@ -308,7 +308,9 @@ class DataManager:
                 if member_alias not in self.scores_df.columns:
                     raise DataValidationError(f"Member not found: {member_alias}")
 
-                self.scores_df.loc[metric_mask, member_alias] = new_score
+                # Round the score to remove decimal places
+                rounded_score = round(new_score)
+                self.scores_df.loc[metric_mask, member_alias] = rounded_score
 
             # Recompute min/max for affected metrics
             self._recompute_min_max(list(score_changes.keys()))
@@ -337,6 +339,55 @@ class DataManager:
                 # Update min/max in dataframe
                 self.scores_df.loc[metric_mask, 'Min'] = new_min
                 self.scores_df.loc[metric_mask, 'Max'] = new_max
+
+    def update_expected_rankings(self, rankings: List[Dict[str, Any]]) -> None:
+        """Update expected rankings for multiple members."""
+        with self._data_lock:
+            if not self._data_loaded:
+                raise DataValidationError("Data not loaded")
+
+            # Create new expected ranking dataframe
+            new_rankings_df = pd.DataFrame(rankings)
+
+            # Validate the data
+            if not all(col in new_rankings_df.columns for col in ['alias', 'role', 'rank']):
+                raise DataValidationError("Expected ranking data must have 'alias', 'role', and 'rank' columns")
+
+            # Validate that all aliases exist in roles
+            valid_aliases = set(self.roles_df['alias'].tolist())
+            invalid_aliases = set(new_rankings_df['alias'].tolist()) - valid_aliases
+            if invalid_aliases:
+                raise DataValidationError(f"Invalid aliases found: {', '.join(invalid_aliases)}")
+
+            # Update the expected ranking dataframe
+            self.expected_ranking_df = new_rankings_df.copy()
+            self._normalize_data()
+            logger.info(f"Updated expected rankings for {len(rankings)} members")
+
+    def update_roles(self, roles: List[Dict[str, Any]]) -> None:
+        """Update roles for multiple members."""
+        with self._data_lock:
+            if not self._data_loaded:
+                raise DataValidationError("Data not loaded")
+
+            # Create new roles dataframe
+            new_roles_df = pd.DataFrame(roles)
+
+            # Validate the data
+            if not all(col in new_roles_df.columns for col in ['alias', 'role']):
+                raise DataValidationError("Role data must have 'alias' and 'role' columns")
+
+            # Validate that all aliases exist in scores
+            if self.scores_df is not None:
+                valid_aliases = set(self.scores_df.columns.tolist()) - {'metrics', 'Dev', 'PMO', 'eTrading', 'RISK', 'Max', 'Min'}
+                invalid_aliases = set(new_roles_df['alias'].tolist()) - valid_aliases
+                if invalid_aliases:
+                    raise DataValidationError(f"Invalid aliases found: {', '.join(invalid_aliases)}")
+
+            # Update the roles dataframe
+            self.roles_df = new_roles_df.copy()
+            self._normalize_data()
+            logger.info(f"Updated roles for {len(roles)} members")
 
     def save_data(self) -> None:
         """Save data back to Excel file."""

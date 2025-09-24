@@ -1,0 +1,16 @@
+Current weights: 96 entries, range 0 to 930
+Weights are already in the 0-1000 range!
+
+Sample weights (first 10 non-zero):
+Metric                    Role       Weight
+--------------------------------------------------
+Architecture              Dev        910
+Budget Adherence          PMO        710
+Code Quality              Dev        870
+Collaboration             Dev        690
+Compliance                RISK       890
+Delivery Predictability   Dev        820
+Incident Response         Dev        550
+Innovation                eTrading   660
+Issue Remediation         RISK       810
+Latency Optimization      eTrading   850

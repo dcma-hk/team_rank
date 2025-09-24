@@ -56,6 +56,25 @@ export interface SnapshotInfo {
   available_snapshots: string[]
 }
 
+export interface ExpectedRankingUpdate {
+  alias: string
+  role: string
+  rank: number
+}
+
+export interface RoleUpdate {
+  alias: string
+  role: string
+}
+
+export interface BulkExpectedRankingUpdate {
+  rankings: ExpectedRankingUpdate[]
+}
+
+export interface BulkRoleUpdate {
+  roles: RoleUpdate[]
+}
+
 // API functions
 export const apiService = {
   // GET endpoints
@@ -143,6 +162,26 @@ export const apiService = {
         'Content-Type': 'multipart/form-data',
       },
     })
+    return response.data
+  },
+
+  async updateExpectedRankings(request: BulkExpectedRankingUpdate): Promise<{
+    ok: boolean
+    message: string
+    updated_count: number
+    updated_at: string
+  }> {
+    const response = await api.post('/update/expected-rankings', request)
+    return response.data
+  },
+
+  async updateRoles(request: BulkRoleUpdate): Promise<{
+    ok: boolean
+    message: string
+    updated_count: number
+    updated_at: string
+  }> {
+    const response = await api.post('/update/roles', request)
     return response.data
   },
 }

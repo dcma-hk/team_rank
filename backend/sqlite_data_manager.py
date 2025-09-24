@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 import random
 
+import pandas as pd
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError
@@ -119,8 +120,8 @@ class SQLiteDataManager:
                     # Get weights by role
                     weights_by_role = {}
                     for weight_db in metric_db.weights:
-                        # Convert integer weight (0-1000) to float (0.0-1.0)
-                        weights_by_role[weight_db.role] = weight_db.weight / 1000.0
+                        # Keep integer weight (0-1000) as-is for display
+                        weights_by_role[weight_db.role] = float(weight_db.weight)
                     
                     metrics.append(Metric(
                         id=f"M{metric_db.id}",
@@ -537,3 +538,62 @@ class SQLiteDataManager:
                     session.rollback()
                     logger.error(f"Failed to replace snapshot data: {e}")
                     raise SQLiteDataValidationError(f"Failed to replace snapshot data: {e}")
+
+    def update_expected_rankings(self, rankings: List[Dict[str, Any]]) -> None:
+        """Update expected rankings for multiple members."""
+        with self._data_lock:
+            with self.get_session() as session:
+                try:
+                    for ranking_data in rankings:
+                        alias = ranking_data['alias']
+                        role = ranking_data['role']
+                        expected_rank = ranking_data['rank']
+
+                        # Find the member
+                        member = session.query(MemberDB).filter_by(alias=alias).first()
+                        if not member:
+                            # Create new member if doesn't exist
+                            member = MemberDB(alias=alias, role=role)
+                            session.add(member)
+                            session.flush()  # Get the ID
+                        else:
+                            # Update role if different
+                            member.role = role
+
+                        # Update expected rank
+                        member.expected_rank = expected_rank
+
+                    session.commit()
+                    logger.info(f"Successfully updated expected rankings for {len(rankings)} members")
+
+                except Exception as e:
+                    session.rollback()
+                    logger.error(f"Failed to update expected rankings: {e}")
+                    raise SQLiteDataValidationError(f"Failed to update expected rankings: {e}")
+
+    def update_roles(self, roles: List[Dict[str, Any]]) -> None:
+        """Update roles for multiple members."""
+        with self._data_lock:
+            with self.get_session() as session:
+                try:
+                    for role_data in roles:
+                        alias = role_data['alias']
+                        role = role_data['role']
+
+                        # Find the member
+                        member = session.query(MemberDB).filter_by(alias=alias).first()
+                        if not member:
+                            # Create new member if doesn't exist
+                            member = MemberDB(alias=alias, role=role)
+                            session.add(member)
+                        else:
+                            # Update role
+                            member.role = role
+
+                    session.commit()
+                    logger.info(f"Successfully updated roles for {len(roles)} members")
+
+                except Exception as e:
+                    session.rollback()
+                    logger.error(f"Failed to update roles: {e}")
+                    raise SQLiteDataValidationError(f"Failed to update roles: {e}")

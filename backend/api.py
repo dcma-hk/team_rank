@@ -11,7 +11,8 @@ import pandas as pd
 
 from backend.models import (
     Member, Metric, RankingEntry, ScoreAdjustmentRequest,
-    ScoreAdjustmentApply, ScoreAdjustmentPreview, PercentileBucket, ErrorResponse
+    ScoreAdjustmentApply, ScoreAdjustmentPreview, PercentileBucket, ErrorResponse,
+    BulkExpectedRankingUpdate, BulkRoleUpdate
 )
 from backend.data_manager import DataManager, DataValidationError
 from backend.sqlite_data_manager import SQLiteDataManager, SQLiteDataValidationError
@@ -215,10 +216,20 @@ async def preview_adjustment(
 async def apply_adjustment(
     request: ScoreAdjustmentApply,
     data_manager: DataManager = Depends(get_data_manager),
-    ranking_engine: RankingEngine = Depends(get_ranking_engine)
+    ranking_engine: RankingEngine = Depends(get_ranking_engine),
+    adjustment_engine: AdjustmentEngine = Depends(get_adjustment_engine)
 ) -> Dict[str, Any]:
     """Apply score changes and save to Excel."""
     try:
+        # Validate one-level restriction before applying changes
+        is_valid, validation_message = adjustment_engine.validate_one_level_restriction(
+            request.alias, request.changes
+        )
+
+        if not is_valid:
+            logger.warning(f"One-level restriction violated for {request.alias}: {validation_message}")
+            raise HTTPException(status_code=400, detail=validation_message)
+
         # Update member scores with snapshot support
         if hasattr(data_manager, 'update_member_scores') and 'snapshot' in data_manager.update_member_scores.__code__.co_varnames:
             data_manager.update_member_scores(request.alias, request.changes, snapshot=request.snapshot)
@@ -240,6 +251,8 @@ async def apply_adjustment(
             "rankings": updated_rankings,
             "snapshot": request.snapshot
         }
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions (like validation errors)
     except ValueError as e:
         logger.warning(f"Invalid apply request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -473,3 +486,86 @@ async def upload_excel_data(
     except Exception as e:
         logger.error(f"Error uploading Excel data: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload Excel data: {str(e)}")
+
+
+@router.post("/update/expected-rankings")
+async def update_expected_rankings(
+    request: BulkExpectedRankingUpdate,
+    data_manager: DataManager = Depends(get_data_manager),
+    ranking_engine: RankingEngine = Depends(get_ranking_engine)
+) -> Dict[str, Any]:
+    """Update expected rankings for multiple members."""
+    try:
+        # Convert request to list of dictionaries
+        rankings_data = [
+            {
+                "alias": ranking.alias,
+                "role": ranking.role,
+                "rank": ranking.rank
+            }
+            for ranking in request.rankings
+        ]
+
+        # Update expected rankings
+        data_manager.update_expected_rankings(rankings_data)
+
+        # Save data
+        data_manager.save_data()
+
+        # Get updated rankings
+        updated_rankings = ranking_engine.calculate_rankings()
+
+        return {
+            "ok": True,
+            "message": f"Successfully updated expected rankings for {len(rankings_data)} members",
+            "updated_count": len(rankings_data),
+            "updated_at": "now"
+        }
+
+    except ValueError as e:
+        logger.warning(f"Invalid expected rankings update request: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating expected rankings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update expected rankings")
+
+
+@router.post("/update/roles")
+async def update_roles(
+    request: BulkRoleUpdate,
+    data_manager: DataManager = Depends(get_data_manager),
+    ranking_engine: RankingEngine = Depends(get_ranking_engine)
+) -> Dict[str, Any]:
+    """Update roles for multiple members."""
+    try:
+        # Convert request to list of dictionaries
+        roles_data = [
+            {
+                "alias": role.alias,
+                "role": role.role
+            }
+            for role in request.roles
+        ]
+
+        # Update roles
+        data_manager.update_roles(roles_data)
+
+        # Save data
+        data_manager.save_data()
+
+        # Get updated rankings
+        updated_rankings = ranking_engine.calculate_rankings()
+
+        return {
+            "ok": True,
+            "message": f"Successfully updated roles for {len(roles_data)} members",
+            "updated_count": len(roles_data),
+            "updated_at": "now"
+        }
+
+    except ValueError as e:
+        logger.warning(f"Invalid roles update request: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating roles: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update roles")

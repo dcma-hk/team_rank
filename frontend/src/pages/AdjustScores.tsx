@@ -56,7 +56,7 @@ const AdjustScores: React.FC = () => {
 
   const { data: scores, isLoading: scoresLoading } = useQuery({
     queryKey: ['scores'],
-    queryFn: apiService.getScores,
+    queryFn: () => apiService.getScores(),
   })
 
   // Mutations
@@ -213,15 +213,29 @@ const AdjustScores: React.FC = () => {
     })
   }
 
+  // Check if there are any changes from original scores
+  const hasChanges = useMemo(() => {
+    return Object.keys(editedScores).some(metricName => {
+      const editedValue = editedScores[metricName]
+      const originalValue = getCurrentScore(metricName)
+      return Math.abs(editedValue - originalValue) > 0.0001 // Use small epsilon for floating point comparison
+    })
+  }, [editedScores, scores, alias])
+
   // Handle save button
   const handleSave = () => {
-    if (!alias) return
+    if (!alias || !hasChanges) return
 
     const changes: Record<string, number> = {}
-    selectedMetrics.forEach((metricName) => {
-      const value = getEditedValue(metricName)
-      changes[metricName] = value
+    // Only include metrics that have actually changed from their original values
+    Object.keys(editedScores).forEach((metricName) => {
+      const editedValue = editedScores[metricName]
+      const originalValue = getCurrentScore(metricName)
+      if (Math.abs(editedValue - originalValue) > 0.0001) {
+        changes[metricName] = editedValue
+      }
     })
+
     if (Object.keys(changes).length === 0) return
 
     applyMutation.mutate({
@@ -423,16 +437,14 @@ const AdjustScores: React.FC = () => {
           <Button variant="outlined" onClick={handleNext} sx={{ mr: 2 }}>
             Next
           </Button>
-          {preview && (
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleSave}
-              disabled={applyMutation.isPending}
-            >
-              {applyMutation.isPending ? 'Saving...' : 'Save'}
-            </Button>
-          )}
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleSave}
+            disabled={!hasChanges || applyMutation.isPending}
+          >
+            {applyMutation.isPending ? 'Saving...' : 'Save'}
+          </Button>
         </Box>
       </Paper>
 
@@ -483,10 +495,8 @@ const AdjustScores: React.FC = () => {
                     key={metricName}
                     sx={{
                       backgroundColor: isEditable ? 'action.hover' : 'inherit',
-                      '&:hover': { backgroundColor: 'action.selected' },
-                      cursor: 'pointer'
+                      '&:hover': { backgroundColor: 'action.selected' }
                     }}
-                    onClick={() => handleMetricToggle(metricName)}
                   >
                     <TableCell padding="checkbox">
                       <Checkbox
@@ -517,7 +527,7 @@ const AdjustScores: React.FC = () => {
                     </TableCell>
                     <TableCell align="center">
                       <Typography variant="body2" color="text.secondary">
-                        {weight.toFixed(2)}
+                        {Math.round(weight)}
                       </Typography>
                     </TableCell>
                     <TableCell
@@ -570,14 +580,14 @@ const AdjustScores: React.FC = () => {
                             color: isEditable ? 'primary.main' : shouldHighlight ? 'error.main' : 'inherit'
                           }}
                         >
-                          {memberVal.toFixed(4)}
+                          {Math.round(memberVal)}
                         </Typography>
                       )}
                     </TableCell>
                     {referenceMember && (
                       <TableCell align="right">
                         <Typography variant="body2" color="text.secondary">
-                          {refVal !== null ? refVal.toFixed(4) : '-'}
+                          {refVal !== null ? Math.round(refVal) : '-'}
                         </Typography>
                       </TableCell>
                     )}
@@ -591,7 +601,7 @@ const AdjustScores: React.FC = () => {
                               fontWeight: Math.abs(difference) > 0.01 ? 'bold' : 'normal'
                             }}
                           >
-                            {difference > 0 ? '+' : ''}{difference.toFixed(4)}
+                            {difference > 0 ? '+' : ''}{Math.round(difference)}
                           </Typography>
                         ) : (
                           '-'
@@ -619,7 +629,7 @@ const AdjustScores: React.FC = () => {
                   {alias} Total
                 </Typography>
                 <Typography variant="h6" color="primary.contrastText">
-                  {totals.memberWeighted.toFixed(4)}
+                  {Math.round(totals.memberWeighted)}
                 </Typography>
               </Box>
               <Box sx={{ textAlign: 'center', p: 1, backgroundColor: 'grey.200', borderRadius: 1 }}>
@@ -627,7 +637,7 @@ const AdjustScores: React.FC = () => {
                   {referenceMember.alias} Total
                 </Typography>
                 <Typography variant="h6" color="text.primary">
-                  {totals.refWeighted.toFixed(4)}
+                  {Math.round(totals.refWeighted)}
                 </Typography>
               </Box>
               <Box sx={{
@@ -648,16 +658,16 @@ const AdjustScores: React.FC = () => {
                   color={totals.delta > 0 ? 'success.contrastText' : totals.delta < 0 ? 'error.contrastText' : 'text.primary'}
                   sx={{ fontWeight: 'bold' }}
                 >
-                  {totals.delta > 0 ? '+' : ''}{totals.delta.toFixed(4)}
+                  {totals.delta > 0 ? '+' : ''}{Math.round(totals.delta)}
                 </Typography>
               </Box>
             </Box>
             <Box sx={{ mt: 1, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">
                 {totals.delta > 0
-                  ? `${alias} is ${totals.delta.toFixed(4)} points ahead of ${referenceMember.alias}`
+                  ? `${alias} is ${Math.round(totals.delta)} points ahead of ${referenceMember.alias}`
                   : totals.delta < 0
-                    ? `${alias} is ${Math.abs(totals.delta).toFixed(4)} points behind ${referenceMember.alias}`
+                    ? `${alias} is ${Math.round(Math.abs(totals.delta))} points behind ${referenceMember.alias}`
                     : `${alias} and ${referenceMember.alias} have equal weighted scores`
                 }
               </Typography>

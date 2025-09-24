@@ -10,6 +10,7 @@ const Navigation: React.FC = () => {
     if (location.pathname === '/') return 0
     if (location.pathname.startsWith('/adjust')) return 1
     if (location.pathname === '/org') return 2
+    if (location.pathname === '/update') return 3
     return 0
   }
 
@@ -24,6 +25,9 @@ const Navigation: React.FC = () => {
       case 2:
         navigate('/org')
         break
+      case 3:
+        navigate('/update')
+        break
     }
   }
 
@@ -33,6 +37,7 @@ const Navigation: React.FC = () => {
         <Tab label="Stack Rank Table" />
         <Tab label="Adjust Scores" disabled={!location.pathname.startsWith('/adjust')} />
         <Tab label="Org Percentiles" />
+        <Tab label="Update Data" />
       </Tabs>
     </Box>
   )

@@ -6,6 +6,7 @@ import { useThemeMode } from './theme-kit/ThemeContext'
 import StackRankTable from './pages/StackRankTable'
 import AdjustScores from './pages/AdjustScores'
 import OrgPercentiles from './pages/OrgPercentiles'
+import UpdateData from './pages/UpdateData'
 import Navigation from './components/Navigation'
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
           <Route path="/" element={<StackRankTable />} />
           <Route path="/adjust/:alias" element={<AdjustScores />} />
           <Route path="/org" element={<OrgPercentiles />} />
+          <Route path="/update" element={<UpdateData />} />
         </Routes>
       </Container>
     </Box>

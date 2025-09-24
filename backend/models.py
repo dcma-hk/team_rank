@@ -158,6 +158,29 @@ class PercentileBucket(BaseModel):
     by_role: Dict[str, List[Dict[str, Any]]]
 
 
+class ExpectedRankingUpdate(BaseModel):
+    """Expected ranking update model."""
+    alias: str
+    role: str
+    rank: int
+
+
+class RoleUpdate(BaseModel):
+    """Role update model."""
+    alias: str
+    role: str
+
+
+class BulkExpectedRankingUpdate(BaseModel):
+    """Bulk expected ranking update request."""
+    rankings: List[ExpectedRankingUpdate]
+
+
+class BulkRoleUpdate(BaseModel):
+    """Bulk role update request."""
+    roles: List[RoleUpdate]
+
+
 class ErrorResponse(BaseModel):
     """Error response model."""
     error: Dict[str, Any]
