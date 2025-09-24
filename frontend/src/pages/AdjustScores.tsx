@@ -481,7 +481,7 @@ const AdjustScores: React.FC = () => {
                 <TableCell align="center">Weight</TableCell>
                 <TableCell align="right">{alias}</TableCell>
                 {referenceMember && (
-                  <TableCell align="right">{referenceMember.alias}</TableCell>
+                  <TableCell align="right">{referenceMember.alias} (Rank {referenceMember.rank})</TableCell>
                 )}
                 {referenceMember && (
                   <TableCell align="right">Difference</TableCell>

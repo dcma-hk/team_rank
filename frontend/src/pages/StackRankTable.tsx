@@ -217,8 +217,8 @@ const StackRankTable: React.FC = () => {
           sx={{
             color: params.row.mismatch ? 'error.main' : 'inherit',
             fontWeight: params.row.mismatch ? 'bold' : 'normal',
-            cursor: params.row.firstRankExpectMismatch ? 'pointer' : 'default',
-            backgroundColor: params.row.firstRankExpectMismatch ? 'rgba(255, 0, 0, 0.1)' : 'transparent',
+            cursor: params.row.rankExpectMismatch ? 'pointer' : 'default',
+            backgroundColor: params.row.rankExpectMismatch ? 'rgba(255, 0, 0, 0.1)' : 'transparent',
             padding: '4px',
             borderRadius: '4px',
             width: '100%',
@@ -228,7 +228,7 @@ const StackRankTable: React.FC = () => {
             justifyContent: 'center',
           }}
           onClick={() => {
-            if (params.row.firstRankExpectMismatch) {
+            if (params.row.rankExpectMismatch) {
               navigate(`/adjust/${params.row.alias}`)
             }
           }}
@@ -264,34 +264,12 @@ const StackRankTable: React.FC = () => {
       mismatch: entry.mismatch,
     }))
 
-    // Find the first row with rank/expect difference when role is selected and sorted by expect
-    let firstMismatchIndex = -1
-    if (selectedRole && currentSortModel.length > 0 &&
-        currentSortModel[0].field === 'expected_rank' &&
-        currentSortModel[0].sort === 'asc') {
-      // Sort by expected_rank ascending to match the table sort
-      const sortedRows = [...processedRows].sort((a, b) => {
-        const aExpected = a.expected_rank || Number.MAX_SAFE_INTEGER
-        const bExpected = b.expected_rank || Number.MAX_SAFE_INTEGER
-        return aExpected - bExpected
-      })
-
-      // Find first row with difference between rank and expected_rank
-      for (let i = 0; i < sortedRows.length; i++) {
-        const row = sortedRows[i]
-        if (row.rank !== row.expected_rank && row.expected_rank != null) {
-          firstMismatchIndex = row.id
-          break
-        }
-      }
-    }
-
-    // Add firstRankExpectMismatch flag to rows
+    // Add rankExpectMismatch flag to rows - any row with difference between rank and expected_rank is clickable
     return processedRows.map(row => ({
       ...row,
-      firstRankExpectMismatch: row.id === firstMismatchIndex
+      rankExpectMismatch: row.rank !== row.expected_rank && row.expected_rank != null
     }))
-  }, [rankings, selectedRole, currentSortModel])
+  }, [rankings])
 
   if (isLoading) {
     return (
@@ -444,8 +422,8 @@ const StackRankTable: React.FC = () => {
       {/* Legend */}
       <Box sx={{ mt: 2 }}>
         <Typography variant="body2" color="text.secondary">
-          <strong>Note:</strong> When a role is selected and sorted by Expected Rank, the first rank cell with a mismatch
-          is highlighted in light red and clickable to adjust scores. This mismatch should be resolved first.
+          <strong>Note:</strong> Any rank cell with a difference between Expected Rank and Rank
+          is highlighted in light red and clickable to adjust scores.
         </Typography>
       </Box>
 
