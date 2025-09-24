@@ -17,7 +17,13 @@ import {
   Alert,
   CircularProgress,
   Divider,
+  Slider,
 } from '@mui/material'
+import {
+  Person as PersonIcon,
+  TrendingUp as TrendingUpIcon,
+  Flag as FlagIcon
+} from '@mui/icons-material'
 import apiService, { ScoreAdjustmentPreview } from '../services/api'
 
 const AdjustScores: React.FC = () => {
@@ -160,11 +166,21 @@ const AdjustScores: React.FC = () => {
 
   // Handle metric selection
   const handleMetricToggle = (metricName: string) => {
-    setSelectedMetrics(prev =>
-      prev.includes(metricName)
-        ? prev.filter(m => m !== metricName)
-        : [...prev, metricName]
-    )
+    setSelectedMetrics(prev => {
+      const isCurrentlySelected = prev.includes(metricName)
+
+      if (isCurrentlySelected) {
+        // When unchecking, revert to original value
+        setEditedScores(prevScores => {
+          const newScores = { ...prevScores }
+          delete newScores[metricName] // Remove edited value to revert to original
+          return newScores
+        })
+        return prev.filter(m => m !== metricName)
+      } else {
+        return [...prev, metricName]
+      }
+    })
   }
 
   // Handle calculate button
@@ -228,19 +244,124 @@ const AdjustScores: React.FC = () => {
       </Typography>
 
       {/* Member Info */}
-      <Paper sx={{ p: 2, mb: 3 }} className="detail-card">
-        <Typography variant="h6" gutterBottom>
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 2 }} className="detail-card">
+        <Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 600, color: 'text.primary' }}>
           Member Information
         </Typography>
-        <Typography>Role: {currentMember.role}</Typography>
-        <Typography>Current Rank: {currentRanking.rank}</Typography>
-        <Typography>Expected Rank: {currentRanking.expected_rank || 'Not set'}</Typography>
-        <Typography>Weighted Score: {currentRanking.weighted_score.toFixed(4)}</Typography>
-        {referenceMember && (
-          <Typography>
-            Reference Member: {referenceMember.alias} (Rank {referenceMember.rank}, Score: {referenceMember.weighted_score.toFixed(4)})
-          </Typography>
-        )}
+
+        <Box sx={{
+          display: 'flex',
+          gap: 2,
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          '@media (max-width: 768px)': {
+            flexDirection: 'column'
+          }
+        }}>
+          {/* Role Card */}
+          <Box className="member-info-card" sx={{
+            flex: '1 1 0',
+            minWidth: '160px',
+            p: 2.5,
+            backgroundColor: 'background.paper',
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            position: 'relative'
+          }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+              <Typography variant="body2" sx={{
+                color: 'text.secondary',
+                fontWeight: 500,
+                fontSize: '0.875rem'
+              }}>
+                Role
+              </Typography>
+              <PersonIcon sx={{
+                color: 'primary.main',
+                fontSize: '1.25rem'
+              }} />
+            </Box>
+            <Typography variant="h4" sx={{
+              color: 'text.primary',
+              fontWeight: 700,
+              fontSize: '1.75rem',
+              lineHeight: 1.2
+            }}>
+              {currentMember?.role || 'N/A'}
+            </Typography>
+          </Box>
+
+          {/* Current Rank Card */}
+          <Box className="member-info-card" sx={{
+            flex: '1 1 0',
+            minWidth: '160px',
+            p: 2.5,
+            backgroundColor: 'background.paper',
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            position: 'relative'
+          }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+              <Typography variant="body2" sx={{
+                color: 'text.secondary',
+                fontWeight: 500,
+                fontSize: '0.875rem'
+              }}>
+                Current Rank
+              </Typography>
+              <TrendingUpIcon sx={{
+                color: currentRanking?.rank > (currentRanking?.expected_rank || currentRanking?.rank)
+                  ? 'error.main'
+                  : 'success.main',
+                fontSize: '1.25rem'
+              }} />
+            </Box>
+            <Typography variant="h4" sx={{
+              color: 'text.primary',
+              fontWeight: 700,
+              fontSize: '1.75rem',
+              lineHeight: 1.2
+            }}>
+              {currentRanking?.rank || 'N/A'}
+            </Typography>
+          </Box>
+
+          {/* Expected Rank Card */}
+          <Box className="member-info-card" sx={{
+            flex: '1 1 0',
+            minWidth: '160px',
+            p: 2.5,
+            backgroundColor: 'background.paper',
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            position: 'relative'
+          }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+              <Typography variant="body2" sx={{
+                color: 'text.secondary',
+                fontWeight: 500,
+                fontSize: '0.875rem'
+              }}>
+                Expected Rank
+              </Typography>
+              <FlagIcon sx={{
+                color: 'info.main',
+                fontSize: '1.25rem'
+              }} />
+            </Box>
+            <Typography variant="h4" sx={{
+              color: 'text.primary',
+              fontWeight: 700,
+              fontSize: '1.75rem',
+              lineHeight: 1.2
+            }}>
+              {currentRanking?.expected_rank || 'Not set'}
+            </Typography>
+          </Box>
+        </Box>
       </Paper>
 
 
@@ -250,14 +371,27 @@ const AdjustScores: React.FC = () => {
         <Typography variant="h6" gutterBottom>
           Target Adjustment
         </Typography>
-        <TextField
-          label="Target Percent (%)"
-          type="number"
-          value={targetPercent}
-          onChange={(e) => setTargetPercent(parseFloat(e.target.value) || 0)}
-          inputProps={{ min: 0.1, max: 50, step: 0.1 }}
-          sx={{ mb: 2 }}
-        />
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Target Percent: {targetPercent.toFixed(1)}%
+          </Typography>
+          <Slider
+            value={targetPercent}
+            onChange={(_, newValue) => setTargetPercent(newValue as number)}
+            min={0.1}
+            max={50}
+            step={0.1}
+            marks={[
+              { value: 0.1, label: '0.1%' },
+              { value: 5, label: '5%' },
+              { value: 10, label: '10%' },
+              { value: 25, label: '25%' },
+              { value: 50, label: '50%' }
+            ]}
+            valueLabelDisplay="auto"
+            sx={{ mt: 1, mb: 1 }}
+          />
+        </Box>
         <Box>
           <Button
             variant="contained"
@@ -322,6 +456,30 @@ const AdjustScores: React.FC = () => {
                 const weight = weightByMetricName[metricName] || 0
                 const difference = refVal !== null ? memberVal - refVal : null
 
+                // Determine if this cell should be highlighted as causing wrong ranking
+                // Highlighting logic:
+                // - If member's expected rank is higher (lower number) than current rank,
+                //   highlight cells where member's score is lower than reference member's score
+                // - If member's expected rank is lower (higher number) than current rank,
+                //   highlight cells where member's score is higher than reference member's score
+                const shouldHighlightMemberCell = useMemo(() => {
+                  if (!currentRanking || !referenceMember || refVal === null || weight <= 0) return false
+
+                  const expectedRank = currentRanking.expected_rank
+                  const currentRank = currentRanking.rank
+
+                  if (!expectedRank || expectedRank === currentRank) return false
+
+                  // If expected rank is higher (lower number), member should have higher scores
+                  if (expectedRank < currentRank) {
+                    return memberVal < refVal
+                  }
+                  // If expected rank is lower (higher number), member should have lower scores
+                  else {
+                    return memberVal > refVal
+                  }
+                }, [currentRanking, referenceMember, refVal, memberVal, weight, metricName])
+
                 return (
                   <TableRow
                     key={metricName}
@@ -364,7 +522,13 @@ const AdjustScores: React.FC = () => {
                         {weight.toFixed(2)}
                       </Typography>
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell
+                      align="right"
+                      sx={{
+                        backgroundColor: shouldHighlightMemberCell ? 'rgba(244, 67, 54, 0.1)' : 'inherit',
+                        borderLeft: shouldHighlightMemberCell ? '3px solid #f44336' : 'none'
+                      }}
+                    >
                       {isEditable ? (
                         <TextField
                           size="small"
@@ -372,16 +536,31 @@ const AdjustScores: React.FC = () => {
                           value={memberVal}
                           onChange={(e) => {
                             const v = parseFloat(e.target.value)
-                            const clamped = isNaN(v) ? 0 : Math.min(Math.max(v, metric.min_value), metric.max_value)
+                            const clamped = isNaN(v) ? 0 : Math.min(Math.max(v, 0), 10)
                             setEditedScores(prev => ({ ...prev, [metricName]: clamped }))
                           }}
                           onClick={(e) => e.stopPropagation()}
                           onFocus={(e) => e.stopPropagation()}
-                          inputProps={{ step: 0.0001, min: metric.min_value, max: metric.max_value }}
+                          inputProps={{
+                            step: 0.0001,
+                            min: 0,
+                            max: 10,
+                            style: { MozAppearance: 'textfield' } // Remove arrows in Firefox
+                          }}
                           sx={{
                             '& .MuiInputBase-input': {
                               textAlign: 'right',
-                              fontWeight: 'bold'
+                              fontWeight: 'bold',
+                              backgroundColor: shouldHighlightMemberCell ? 'rgba(244, 67, 54, 0.05)' : 'inherit'
+                            },
+                            // Remove arrows in Chrome, Safari, Edge
+                            '& input[type=number]::-webkit-outer-spin-button': {
+                              WebkitAppearance: 'none',
+                              margin: 0,
+                            },
+                            '& input[type=number]::-webkit-inner-spin-button': {
+                              WebkitAppearance: 'none',
+                              margin: 0,
                             }
                           }}
                         />
@@ -390,7 +569,7 @@ const AdjustScores: React.FC = () => {
                           variant="body2"
                           sx={{
                             fontWeight: isEditable ? 'bold' : 'normal',
-                            color: isEditable ? 'primary.main' : 'inherit'
+                            color: isEditable ? 'primary.main' : shouldHighlightMemberCell ? 'error.main' : 'inherit'
                           }}
                         >
                           {memberVal.toFixed(4)}

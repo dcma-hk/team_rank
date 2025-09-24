@@ -76,3 +76,15 @@
   text-transform: uppercase; letter-spacing: 0.5px; color: var(--table-head-text-light) !important;
 }
 
+/* Member Information Cards */
+.member-info-card {
+  transition: all 0.2s ease-in-out !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  min-height: 100px !important;
+}
+
+.member-info-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(37, 99, 235, 0.2) !important;
+}
+
