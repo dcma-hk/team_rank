@@ -413,3 +413,47 @@ class DataManager:
     def is_watching(self) -> bool:
         """Check if file watching is active."""
         return self._file_watcher is not None and self._file_watcher.is_watching
+
+    def replace_snapshot_data(self, scores_df: pd.DataFrame, snapshot: str) -> None:
+        """Replace data for a specific snapshot with uploaded data.
+
+        For Excel/CSV data manager, this replaces the entire scores data
+        since snapshots are not directly supported in this format.
+        """
+        with self._data_lock:
+            if not self._data_loaded:
+                raise DataValidationError("Data not loaded")
+
+            # Validate the uploaded scores DataFrame
+            if scores_df.empty:
+                raise DataValidationError("Uploaded scores data is empty")
+
+            # Check if the first column contains metric names
+            if 'metrics' not in scores_df.columns and len(scores_df.columns) > 0:
+                # If first column doesn't have a proper name, assume it's metrics
+                scores_df = scores_df.copy()
+                scores_df.columns = ['metrics'] + list(scores_df.columns[1:])
+
+            # Validate that we have a metrics column
+            if 'metrics' not in scores_df.columns:
+                raise DataValidationError("Uploaded data must have a 'metrics' column")
+
+            # Backup current data
+            backup_scores_df = self.scores_df.copy() if self.scores_df is not None else None
+
+            try:
+                # Replace the scores data
+                self.scores_df = scores_df.copy()
+
+                # Validate the new data
+                self._validate_data()
+                self._normalize_data()
+
+                logger.info(f"Successfully replaced data for snapshot {snapshot} with {len(scores_df)} records")
+
+            except Exception as e:
+                # Restore backup on error
+                if backup_scores_df is not None:
+                    self.scores_df = backup_scores_df
+                logger.error(f"Failed to replace snapshot data: {e}")
+                raise DataValidationError(f"Failed to replace snapshot data: {e}")

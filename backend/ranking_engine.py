@@ -16,24 +16,30 @@ class RankingEngine:
     def __init__(self, data_manager: DataManager):
         self.data_manager = data_manager
     
-    def calculate_weighted_scores(self, members: Optional[List[str]] = None, 
-                                roles: Optional[List[str]] = None) -> Dict[str, float]:
-        """Calculate weighted scores for specified members and roles."""
+    def calculate_weighted_scores(self, members: Optional[List[str]] = None,
+                                roles: Optional[List[str]] = None,
+                                snapshot: Optional[str] = None) -> Dict[str, float]:
+        """Calculate weighted scores for specified members and roles, optionally filtered by snapshot."""
         if members is None:
             members = [m.alias for m in self.data_manager.get_members()]
-        
+
         if roles is None:
             roles = self.data_manager.get_roles()
-        
+
         # Get member-role mapping
         member_roles = {}
         for member in self.data_manager.get_members():
             if member.alias in members and member.role in roles:
                 member_roles[member.alias] = member.role
-        
+
         # Get metrics and scores
         metrics = self.data_manager.get_metrics()
-        member_scores = self.data_manager.get_member_scores()
+
+        # Check if data manager supports snapshot parameter
+        if hasattr(self.data_manager, 'get_member_scores') and 'snapshot' in self.data_manager.get_member_scores.__code__.co_varnames:
+            member_scores = self.data_manager.get_member_scores(snapshot=snapshot)
+        else:
+            member_scores = self.data_manager.get_member_scores()
         
         weighted_scores = {}
         
@@ -62,18 +68,18 @@ class RankingEngine:
         
         return weighted_scores
     
-    def calculate_rankings(self, roles: Optional[List[str]] = None) -> List[RankingEntry]:
-        """Calculate rankings within role cohorts using dense ranking."""
+    def calculate_rankings(self, roles: Optional[List[str]] = None, snapshot: Optional[str] = None) -> List[RankingEntry]:
+        """Calculate rankings within role cohorts using dense ranking, optionally filtered by snapshot."""
         if roles is None:
             roles = self.data_manager.get_roles()
-        
+
         # Get all members for specified roles
         all_members = self.data_manager.get_members()
         filtered_members = [m for m in all_members if m.role in roles]
-        
+
         # Calculate weighted scores
         member_aliases = [m.alias for m in filtered_members]
-        weighted_scores = self.calculate_weighted_scores(member_aliases, roles)
+        weighted_scores = self.calculate_weighted_scores(member_aliases, roles, snapshot=snapshot)
         
         # Get expected rankings
         expected_rankings = self.data_manager.get_expected_rankings()

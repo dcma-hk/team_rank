@@ -164,6 +164,25 @@ const AdjustScores: React.FC = () => {
     return { memberWeighted, refWeighted, delta: memberWeighted - refWeighted }
   }, [applicableMetrics, editedScores, preview, scores, alias, referenceMember, weightByMetricName])
 
+  // Helper function to determine if a cell should be highlighted
+  const shouldHighlightMemberCell = (metricName: string, memberVal: number, refVal: number | null, weight: number) => {
+    if (!currentRanking || !referenceMember || refVal === null || weight <= 0) return false
+
+    const expectedRank = currentRanking.expected_rank
+    const currentRank = currentRanking.rank
+
+    if (!expectedRank || expectedRank === currentRank) return false
+
+    // If expected rank is higher (lower number), member should have higher scores
+    if (expectedRank < currentRank) {
+      return memberVal < refVal
+    }
+    // If expected rank is lower (higher number), member should have lower scores
+    else {
+      return memberVal > refVal
+    }
+  }
+
   // Handle metric selection
   const handleMetricToggle = (metricName: string) => {
     setSelectedMetrics(prev => {
@@ -457,28 +476,7 @@ const AdjustScores: React.FC = () => {
                 const difference = refVal !== null ? memberVal - refVal : null
 
                 // Determine if this cell should be highlighted as causing wrong ranking
-                // Highlighting logic:
-                // - If member's expected rank is higher (lower number) than current rank,
-                //   highlight cells where member's score is lower than reference member's score
-                // - If member's expected rank is lower (higher number) than current rank,
-                //   highlight cells where member's score is higher than reference member's score
-                const shouldHighlightMemberCell = useMemo(() => {
-                  if (!currentRanking || !referenceMember || refVal === null || weight <= 0) return false
-
-                  const expectedRank = currentRanking.expected_rank
-                  const currentRank = currentRanking.rank
-
-                  if (!expectedRank || expectedRank === currentRank) return false
-
-                  // If expected rank is higher (lower number), member should have higher scores
-                  if (expectedRank < currentRank) {
-                    return memberVal < refVal
-                  }
-                  // If expected rank is lower (higher number), member should have lower scores
-                  else {
-                    return memberVal > refVal
-                  }
-                }, [currentRanking, referenceMember, refVal, memberVal, weight, metricName])
+                const shouldHighlight = shouldHighlightMemberCell(metricName, memberVal, refVal, weight)
 
                 return (
                   <TableRow
@@ -525,8 +523,8 @@ const AdjustScores: React.FC = () => {
                     <TableCell
                       align="right"
                       sx={{
-                        backgroundColor: shouldHighlightMemberCell ? 'rgba(244, 67, 54, 0.1)' : 'inherit',
-                        borderLeft: shouldHighlightMemberCell ? '3px solid #f44336' : 'none'
+                        backgroundColor: shouldHighlight ? 'rgba(244, 67, 54, 0.1)' : 'inherit',
+                        borderLeft: shouldHighlight ? '3px solid #f44336' : 'none'
                       }}
                     >
                       {isEditable ? (
@@ -551,7 +549,7 @@ const AdjustScores: React.FC = () => {
                             '& .MuiInputBase-input': {
                               textAlign: 'right',
                               fontWeight: 'bold',
-                              backgroundColor: shouldHighlightMemberCell ? 'rgba(244, 67, 54, 0.05)' : 'inherit'
+                              backgroundColor: shouldHighlight ? 'rgba(244, 67, 54, 0.05)' : 'inherit'
                             },
                             // Remove arrows in Chrome, Safari, Edge
                             '& input[type=number]::-webkit-outer-spin-button': {
@@ -569,7 +567,7 @@ const AdjustScores: React.FC = () => {
                           variant="body2"
                           sx={{
                             fontWeight: isEditable ? 'bold' : 'normal',
-                            color: isEditable ? 'primary.main' : shouldHighlightMemberCell ? 'error.main' : 'inherit'
+                            color: isEditable ? 'primary.main' : shouldHighlight ? 'error.main' : 'inherit'
                           }}
                         >
                           {memberVal.toFixed(4)}

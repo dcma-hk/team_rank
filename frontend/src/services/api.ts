@@ -43,11 +43,17 @@ export interface ScoreAdjustmentRequest {
 export interface ScoreAdjustmentApply {
   alias: string
   changes: Record<string, number>
+  snapshot?: string
 }
 
 export interface PercentileBucket {
   pct: number
   by_role: Record<string, Array<{ alias: string; weightedScore?: number; rank?: number }>>
+}
+
+export interface SnapshotInfo {
+  current_snapshot: string
+  available_snapshots: string[]
 }
 
 // API functions
@@ -68,17 +74,23 @@ export const apiService = {
     return response.data
   },
 
-  async getScores(): Promise<{
+  async getScores(snapshot?: string): Promise<{
     metrics: string[]
     members: string[]
     scores: Record<string, Record<string, number>>
+    current_snapshot?: string
+    available_snapshots?: string[]
+    requested_snapshot?: string
   }> {
-    const response = await api.get('/scores')
+    const params = snapshot ? { snapshot } : {}
+    const response = await api.get('/scores', { params })
     return response.data
   },
 
-  async getRankings(roles?: string[]): Promise<RankingEntry[]> {
-    const params = roles ? { roles: roles.join(',') } : {}
+  async getRankings(roles?: string[], snapshot?: string): Promise<RankingEntry[]> {
+    const params: Record<string, string> = {}
+    if (roles) params.roles = roles.join(',')
+    if (snapshot) params.snapshot = snapshot
     const response = await api.get('/rankings', { params })
     return response.data
   },
@@ -95,6 +107,11 @@ export const apiService = {
     return response.data
   },
 
+  async getSnapshots(): Promise<SnapshotInfo> {
+    const response = await api.get('/snapshots')
+    return response.data
+  },
+
   // POST endpoints
   async previewAdjustment(request: ScoreAdjustmentRequest): Promise<ScoreAdjustmentPreview> {
     const response = await api.post('/adjust/preview', request)
@@ -107,6 +124,25 @@ export const apiService = {
     rankings: RankingEntry[]
   }> {
     const response = await api.post('/adjust/apply', request)
+    return response.data
+  },
+
+  async uploadExcelData(file: File, snapshot: string): Promise<{
+    ok: boolean
+    message: string
+    snapshot: string
+    records_processed: number
+    updated_at: string
+  }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('snapshot', snapshot)
+
+    const response = await api.post('/upload/excel', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
     return response.data
   },
 }

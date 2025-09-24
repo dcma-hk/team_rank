@@ -10,13 +10,39 @@ import {
   Tooltip,
   CircularProgress,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
 } from '@mui/material'
+import { FileUpload as FileUploadIcon } from '@mui/icons-material'
 import { DataGrid, GridColDef, GridRowParams } from '@mui/x-data-grid'
 import apiService, { RankingEntry, Metric } from '../services/api'
+import ExcelUpload from '../components/ExcelUpload'
 
 const StackRankTable: React.FC = () => {
   const navigate = useNavigate()
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
+  const [selectedSnapshot, setSelectedSnapshot] = useState<string>('')
+  const [uploadDialogOpen, setUploadDialogOpen] = useState<boolean>(false)
+
+  // Fetch snapshots data
+  const { data: snapshotsData, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
+    queryKey: ['snapshots'],
+    queryFn: apiService.getSnapshots,
+    retry: false, // Don't retry if snapshots are not supported
+  })
+
+  // Set default snapshot when snapshots data is loaded, or use fallback
+  React.useEffect(() => {
+    if (snapshotsData && !selectedSnapshot) {
+      setSelectedSnapshot(snapshotsData.current_snapshot)
+    } else if (snapshotsError && !selectedSnapshot) {
+      // Fallback: snapshots not supported, use empty string to indicate no snapshot filtering
+      setSelectedSnapshot('current')
+    }
+  }, [snapshotsData, selectedSnapshot, snapshotsError])
 
   // Fetch data
   const { data: rolesData, isLoading: rolesLoading } = useQuery({
@@ -29,21 +55,36 @@ const StackRankTable: React.FC = () => {
     queryFn: apiService.getMetrics,
   })
 
+  // Determine if snapshots are supported
+  const snapshotsSupported = !snapshotsError && snapshotsData
+
   const { data: rankings, isLoading: rankingsLoading, error: rankingsError } = useQuery({
-    queryKey: ['rankings', selectedRole],
-    queryFn: () => apiService.getRankings(selectedRole ? [selectedRole] : undefined),
+    queryKey: ['rankings', selectedRole, selectedSnapshot, snapshotsSupported],
+    queryFn: () => apiService.getRankings(
+      selectedRole ? [selectedRole] : undefined,
+      snapshotsSupported && selectedSnapshot !== 'current' ? selectedSnapshot : undefined
+    ),
+    enabled: !!selectedSnapshot, // Only run when snapshot is selected
   })
 
   const { data: scoresData, isLoading: scoresLoading } = useQuery({
-    queryKey: ['scores'],
-    queryFn: apiService.getScores,
+    queryKey: ['scores', selectedSnapshot, snapshotsSupported],
+    queryFn: () => apiService.getScores(
+      snapshotsSupported && selectedSnapshot !== 'current' ? selectedSnapshot : undefined
+    ),
+    enabled: !!selectedSnapshot, // Only run when snapshot is selected
   })
 
-  const isLoading = rolesLoading || metricsLoading || rankingsLoading || scoresLoading
+  const isLoading = rolesLoading || metricsLoading || rankingsLoading || scoresLoading || snapshotsLoading
 
   // Handle role selection
   const handleRoleChange = (role: string | null) => {
     setSelectedRole(role)
+  }
+
+  // Handle snapshot selection
+  const handleSnapshotChange = (event: SelectChangeEvent<string>) => {
+    setSelectedSnapshot(event.target.value)
   }
 
   // Create metric columns with tooltips - only show metrics applicable to selected role
@@ -69,7 +110,7 @@ const StackRankTable: React.FC = () => {
           return memberScores ? memberScores[metric.name] || 0 : 0
         },
         valueFormatter: (params) => {
-          return typeof params.value === 'number' ? params.value.toFixed(2) : ''
+          return typeof params.value === 'number' ? Math.round(params.value).toString() : ''
         },
       }))
     }
@@ -96,7 +137,7 @@ const StackRankTable: React.FC = () => {
         return memberScores ? memberScores[metric.name] || 0 : 0
       },
       valueFormatter: (params) => {
-        return typeof params.value === 'number' ? params.value.toFixed(2) : ''
+        return typeof params.value === 'number' ? Math.round(params.value).toString() : ''
       },
     }))
   }, [metrics, scoresData, selectedRole])
@@ -136,6 +177,23 @@ const StackRankTable: React.FC = () => {
         ]
       : []),
     {
+      field: 'expected_rank',
+      headerName: 'Expect',
+      width: 120,
+      type: 'number',
+      headerClassName: 'table-header-cell',
+      renderCell: (params) => (
+        <Box
+          sx={{
+            color: params.row.mismatch ? 'error.main' : 'inherit',
+            fontWeight: params.row.mismatch ? 'bold' : 'normal',
+          }}
+        >
+          {params.value || ''}
+        </Box>
+      ),
+    },
+    {
       field: 'rank',
       headerName: 'Rank',
       width: 80,
@@ -159,30 +217,13 @@ const StackRankTable: React.FC = () => {
       ),
     },
     {
-      field: 'expected_rank',
-      headerName: 'Expected Rank',
-      width: 120,
-      type: 'number',
-      headerClassName: 'table-header-cell',
-      renderCell: (params) => (
-        <Box
-          sx={{
-            color: params.row.mismatch ? 'error.main' : 'inherit',
-            fontWeight: params.row.mismatch ? 'bold' : 'normal',
-          }}
-        >
-          {params.value || ''}
-        </Box>
-      ),
-    },
-    {
       field: 'weighted_score',
-      headerName: 'Weighted Score',
-      width: 140,
+      headerName: 'Score',
+      width: 100,
       type: 'number',
       headerClassName: 'table-header-cell',
       valueFormatter: (params) => {
-        return typeof params.value === 'number' ? params.value.toFixed(4) : ''
+        return typeof params.value === 'number' ? Math.round(params.value).toString() : ''
       },
     },
     ...metricColumns,
@@ -221,33 +262,76 @@ const StackRankTable: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Stack Rank Table
-      </Typography>
+      <Box sx={{ mb: 2 }} />
 
-      {/* Role Filter */}
+      {/* Filters */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-          Filter by Role
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          <Button
-            variant={selectedRole === null ? 'contained' : 'outlined'}
-            onClick={() => handleRoleChange(null)}
-            sx={{ mb: 1 }}
-          >
-            All Roles
-          </Button>
-          {rolesData?.roles.map((role) => (
-            <Button
-              key={role}
-              variant={selectedRole === role ? 'contained' : 'outlined'}
-              onClick={() => handleRoleChange(role)}
-              sx={{ mb: 1 }}
-            >
-              {role} ({rolesData.countsByRole[role]})
-            </Button>
-          ))}
+        <Box sx={{ display: 'flex', gap: 4, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {/* Role Filter */}
+          <Box sx={{ flex: 1, minWidth: 300 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <Button
+                variant={selectedRole === null ? 'contained' : 'outlined'}
+                onClick={() => handleRoleChange(null)}
+                sx={{ mb: 1 }}
+              >
+                All Roles
+              </Button>
+              {rolesData?.roles.map((role) => (
+                <Button
+                  key={role}
+                  variant={selectedRole === role ? 'contained' : 'outlined'}
+                  onClick={() => handleRoleChange(role)}
+                  sx={{ mb: 1 }}
+                >
+                  {role} ({rolesData.countsByRole[role]})
+                </Button>
+              ))}
+            </Box>
+          </Box>
+
+          {/* Snapshot Filter - Only show if snapshots are supported */}
+          {snapshotsSupported && (
+            <Box sx={{ minWidth: 200 }}>
+              <FormControl sx={{ minWidth: 200 }}>
+                <Select
+                  id="snapshot-select"
+                  value={selectedSnapshot}
+                  onChange={handleSnapshotChange}
+                  disabled={!snapshotsData}
+                  size="small"
+                  sx={{
+                    height: '36.5px', // Match button height
+                    '& .MuiSelect-select': {
+                      paddingTop: '8px',
+                      paddingBottom: '8px'
+                    }
+                  }}
+                >
+                  {snapshotsData?.available_snapshots.map((snapshot) => (
+                    <MenuItem key={snapshot} value={snapshot}>
+                      {snapshot}
+                      {snapshot === snapshotsData.current_snapshot && ' (Current)'}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          )}
+
+          {/* Upload Button */}
+          <Box>
+            <Tooltip title="Upload Excel data for a specific snapshot">
+              <Button
+                variant="outlined"
+                startIcon={<FileUploadIcon />}
+                onClick={() => setUploadDialogOpen(true)}
+                sx={{ height: '36.5px' }} // Match other controls height
+              >
+                Upload Data
+              </Button>
+            </Tooltip>
+          </Box>
         </Box>
       </Box>
 
@@ -260,13 +344,11 @@ const StackRankTable: React.FC = () => {
             pagination: {
               paginationModel: { page: 0, pageSize: 25 },
             },
-            sorting: {
-              sortModel: [
-                { field: 'role', sort: 'asc' },
-                { field: 'rank', sort: 'asc' },
-              ],
-            },
           }}
+          sortModel={selectedRole
+            ? [{ field: 'expected_rank', sort: 'asc' }]
+            : [{ field: 'role', sort: 'asc' }]
+          }
           pageSizeOptions={[25, 50, 100]}
           disableColumnMenu
           disableRowSelectionOnClick
@@ -319,10 +401,18 @@ const StackRankTable: React.FC = () => {
       {/* Legend */}
       <Box sx={{ mt: 2 }}>
         <Typography variant="body2" color="text.secondary">
-          <strong>Note:</strong> Highlighted entries indicate mismatches between current rank and expected rank. 
+          <strong>Note:</strong> Highlighted entries indicate mismatches between current rank and expected rank.
           Click on highlighted entries to adjust scores.
         </Typography>
       </Box>
+
+      {/* Excel Upload Dialog */}
+      <ExcelUpload
+        open={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+        availableSnapshots={snapshotsData?.available_snapshots || []}
+        currentSnapshot={snapshotsData?.current_snapshot || ''}
+      />
     </Box>
   )
 }
